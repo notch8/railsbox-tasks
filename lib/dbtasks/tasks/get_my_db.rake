@@ -57,6 +57,11 @@ namespace :db do
     Rake::Task['db:recreate_with_dump'].invoke
   end
 
+  desc 'display db config'
+  task :display_config do
+    puts Rails.application.config.database_configuration.inspect
+  end
+
   desc 'download the pg_dump content into tmp/dump.sql'
   task :download_pg_dump do
     config = Rails.application.config.database_configuration
