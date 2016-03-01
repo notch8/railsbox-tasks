@@ -19,7 +19,7 @@ task :deploy => :check_env do
 end
 
 desc "deploy using ansible"
-task :provision => :check_env  do
+task :provision => :check_env do
   sh "cd #{Rails.root.join('railsbox', ENV['RAILS_ENV'])} && ./provision.sh"
 end
 
@@ -36,20 +36,22 @@ namespace :pg do
     abort('Good call ;-)') if input != 'y'
 
     sh "pg_dump --no-privileges --no-owner --clean --create -Fc oma_development > oma.dump"
-    #
-    #dump
+    # dump
   end
 
   desc 'pull the database'
   task :pull do
-
   end
-
 end
 
 require 'fileutils'
 
 namespace :db do
+
+  def db_dump_file_path
+    File.expand_path("#{Rails.root}/tmp/dump.sql")
+  end
+
   desc 'pull the production PostgreSQL database into the development SQLite'
   task :pull do
     Rake::Task['db:download_pg_dump'].invoke
@@ -62,32 +64,72 @@ namespace :db do
     puts Rails.application.config.database_configuration.inspect
   end
 
-  desc 'download the pg_dump content into tmp/dump.sql'
+  desc "download the mysqldump content into #{db_dump_file_path}"
+  task :download_mysql_dump do
+    config = Rails.application.config.database_configuration
+  end
+
+  desc 'Pull pg db from heroku'
+  task :pull_db_from_heroku do
+    input = ask("This will clear all data from the development database and replace\nit with the data and schema from heroku. Are you sure? (y/n)")
+    abort('Good call ;-)') if input == 'n'
+
+    db_config = Rails.application.config.database_configuration
+    begin
+      heroku_config = Psych.load_file(Rails.root.join('config', 'heroku.yml'))
+    rescue
+      abort 'This app does not contain a heroku config file. eg. /config/heroku.yml '
+    end
+    heroku_apps = heroku_config.keys.map {|app_key| heroku_config[app_key]['app'] }
+    which_heroku_app = choose_from_list("which heroku app do you want to pull the db from:", heroku_apps)
+    abort 'invalid app choice' unless which_heroku_app[0]
+
+    puts 'Pulling db from heroku and dumpping it into your dev db.'
+    puts 'Running rake db:drop'
+    Rake::Task['db:drop'].invoke
+    cmd = "heroku pg:pull DATABASE_URL #{db_config['development']['database']} --app #{which_heroku_app[0]}"
+    puts "Running #{cmd}"
+
+    system `#{cmd}`
+  end
+
+  desc "download the pg_dump content into #{db_dump_file_path}"
   task :download_pg_dump do
     config = Rails.application.config.database_configuration
 
     abort "Missing production database config" if config['production'].blank?
-
-    dev  = config['development']
     prod = config['production']
 
-    abort "Development db is not sqlite3" unless dev['adapter'] =~ /sqlite3/
+    # abort "Development db is not sqlite3" unless dev['adapter'] =~ /sqlite3/
     abort "Production db is not postgresql" unless prod['adapter'] =~ /postgresql/
     abort "Missing ssh host" if prod['ssh_host'].blank?
     abort "Missing database name" if prod['database'].blank?
 
     # remove the old one
-    if File.exists?(pg_dump_file_path)
-      File.delete(pg_dump_file_path)
-    end
+    File.delete(db_dump_file_path) if File.exist?(db_dump_file_path)
 
-    cmd  = "ssh -C "
+    cmd =  "ssh -C "
     cmd << "#{prod['ssh_user']}@" if prod['ssh_user'].present?
     cmd << "#{prod['ssh_host']} "
     cmd << "PGPASSWORD=#{prod['password']} "
     cmd << "pg_dump --data-only --inserts "
     cmd << "--username=#{prod['username']} #{prod['database']} > "
-    cmd << pg_dump_file_path
+    cmd << db_dump_file_path
+
+    system `#{cmd}`
+  end
+
+  desc 'import into loacl pg db'
+  task :import_dump_into_dev_db do
+    config = Rails.application.config.database_configuration
+
+    abort "Missing dev database config" if config['development'].blank?
+
+    dev = config['development']
+
+    abort "no pg dumpfile located in #{db_dump_file_path}" unless File.exist?(db_dump_file_path)
+
+    cmd = "psql #{dev['database']} < #{db_dump_file_path}"
 
     system `#{cmd}`
   end
@@ -95,9 +137,9 @@ namespace :db do
   desc 'remove unused statements and optimze sql for SQLite'
   task :optimze_pg_dump_for_sqlite do
     result = []
-    lines = File.readlines(pg_dump_file_path)
+    lines = File.readlines(db_dump_file_path)
     @version = 0
-    lines.each do | line |
+    lines.each do |line|
       next if line =~ /SELECT pg_catalog.setval/  # sequence value's
       next if line =~ /SET /                      # postgres specific config
       next if line =~ /--/                        # comment
@@ -107,12 +149,12 @@ namespace :db do
       end
 
       # replace true and false for 't' and 'f'
-      line.gsub!("true","'t'")
-      line.gsub!("false","'f'")
+      line.gsub!("true", "'t'")
+      line.gsub!("false", "'f'")
       result << line
     end
 
-    File.open(pg_dump_file_path, "w") do |f|
+    File.open(db_dump_file_path, "w") do |f|
       # Add BEGIN and END so we add it to 1 transaction. Increase speed!
       f.puts("BEGIN;")
       result.each{|line| f.puts(line) unless line.blank?}
@@ -126,11 +168,10 @@ namespace :db do
     database = Rails.configuration.database_configuration['development']['database']
     database_path = File.expand_path("#{Rails.root}/#{database}")
     # remove old backup
-    if File.exists?(database_path + '.backup')
-      File.delete(database_path + '.backup')
-    end
+    File.delete(database_path + '.backup') if File.exist?(database_path + '.backup')
+
     # copy current for backup
-    FileUtils.cp database_path, database_path + '.backup' if File.exists?(database_path)
+    FileUtils.cp database_path, database_path + '.backup' if File.exist?(database_path)
 
     # dropping and re-creating db
     ENV['VERSION'] = @version
@@ -142,13 +183,11 @@ namespace :db do
     # remove migration info
     system `sqlite3 #{database_path} "delete from schema_migrations;"`
     # import dump.sql
-    system `sqlite3 #{database_path} ".read #{pg_dump_file_path}"`
+    system `sqlite3 #{database_path} ".read #{db_dump_file_path}"`
 
     puts "DONE!"
     puts "NOTE: you're now migrated to version #{@version}. Please run db:migrate to apply newer migrations"
   end
 
-  def pg_dump_file_path
-    File.expand_path("#{Rails.root}/tmp/dump.sql")
-  end
+
 end

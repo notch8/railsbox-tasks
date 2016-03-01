@@ -1,11 +1,11 @@
 # coding: utf-8
 lib = File.expand_path('../lib', __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
-require 'dbtasks/version'
+require 'railsbox/version'
 
 Gem::Specification.new do |spec|
-  spec.name          = "dbtasks"
-  spec.version       = Dbtasks::VERSION
+  spec.name          = "railsbox"
+  spec.version       = Railsbox::VERSION
   spec.authors       = ["stevenmcfarlane"]
   spec.email         = ["stevemac72@gmail.com"]
 
