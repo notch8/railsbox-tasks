@@ -3,4 +3,5 @@ inherit_from: .rubocop_todo.yml
 Style/WordArray:
   Enabled: false
 
-  
+Metrics/LineLength:
+  Enabled: false

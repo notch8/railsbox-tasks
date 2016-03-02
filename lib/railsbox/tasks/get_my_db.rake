@@ -188,6 +188,4 @@ namespace :db do
     puts "DONE!"
     puts "NOTE: you're now migrated to version #{@version}. Please run db:migrate to apply newer migrations"
   end
-
-
 end
