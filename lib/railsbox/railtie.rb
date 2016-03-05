@@ -6,7 +6,7 @@ module Railsbox
       __DIR__ = File.dirname(__FILE__)
       load File.expand_path(File.join(__DIR__, "tasks", "ansible.rake"))
       load File.expand_path(File.join(__DIR__, "tasks", "pg.rake"))
-      load File.expand_path(File.join(__DIR__, "tasks", "db.rake"))
+      load File.expand_path(File.join(__DIR__, "tasks", "mysql.rake"))
     end
   end
 end
