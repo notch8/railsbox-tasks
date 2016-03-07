@@ -9,15 +9,6 @@ namespace :railsbox do
       sh "cd #{Rails.root.join('railsbox', ENV['RAILS_ENV'])} && ansible -i inventory "
     end
 
-    desc 'push the database'
-    task :push do
-      input = ask("This will clear all data from the #{ENV['RAILS_ENV']} database. Are you sure? (y/n)")
-      abort('Good call ;-)') if input != 'y'
-
-      sh "pg_dump --no-privileges --no-owner --clean --create -Fc oma_development > oma.dump"
-      # dump
-    end
-
     include Helpers
     desc 'Pull pg db from heroku'
     task :pull_db_from_heroku do

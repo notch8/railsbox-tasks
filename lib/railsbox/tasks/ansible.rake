@@ -16,7 +16,7 @@ namespace :railsbox do
     sh "cd #{Rails.root.join('railsbox', ENV['RAILS_ENV'])} && ./deploy.sh"
   end
 
-  desc "deploy using ansible"
+  desc "provision using ansible"
   task :provision => :check_env do
     sh "cd #{Rails.root.join('railsbox', ENV['RAILS_ENV'])} && ./provision.sh"
   end
