@@ -8,7 +8,7 @@ namespace :railsbox do
   end
 
   task :check_env do
-    abort('Please set an environment') unless ENV['RAILS_ENV'].present? && ENV['RAILS_ENV'] != 'development'
+    abort('Please set an environment') unless ENV['RAILS_ENV'].present?
   end
 
   desc "deploy using ansible"
