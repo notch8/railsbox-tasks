@@ -21,3 +21,9 @@ namespace :railsbox do
     sh "cd #{Rails.root.join('railsbox', ENV['RAILS_ENV'])} && ./provision.sh"
   end
 end
+
+# Drive these to the root for convenience
+['development', 'demo', 'testing', 'staging', 'production'].each do |environment_name|
+  alias_task environment_name => "railsbox:#{environment_name}"
+end
+alias_task :deploy => 'railsbox:deploy'
