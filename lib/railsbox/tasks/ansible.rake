@@ -22,6 +22,13 @@ namespace :railsbox do
   end
 end
 
+def alias_task(hash)
+  hash.each_pair do |(new_task, original_task)|
+    the_task = Rake.application[original_task]
+    task new_task, {the_task.arg_names => [original_task]}
+  end
+end
+
 # Drive these to the root for convenience
 ['development', 'demo', 'testing', 'staging', 'production'].each do |environment_name|
   alias_task environment_name => "railsbox:#{environment_name}"
