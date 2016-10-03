@@ -7,36 +7,34 @@ namespace :railsbox do
     include Helpers
 
     desc "download the mysqldump content into #{Helpers.db_dump_file_path}"
-    task :mysql_dump_download do
-      env = which_env
-      mysql_name, mysql_user, mysql_password = Helpers.get_ansible_db_vars(env, 'mysql')
-      mysql_host = Helpers.get_ansible_db_host(env)
-      puts "host: #{mysql_host}\ndatabase: #{mysql_name}\nuser: #{mysql_user}"
+    task :dump => :check_env do
+      ENV['DB_KIND'] = db_kind = 'mysql'
+
       File.delete(Helpers.db_dump_file_path) if File.exist?(Helpers.db_dump_file_path)
       puts 'old db dump removed if exists'
 
-      cmd = 'ssh -C '
-      cmd << "#{mysql_user}@#{mysql_host} "
+      cmd = Helpers.ssh_command
       cmd << "mysqldump "
-      cmd << "-u #{mysql_user} "
-      cmd << "--password='#{mysql_password}' " if mysql_password
-      cmd << "> #{Helpers.db_dump_file_path}"
+      cmd << "-u #{Helpers.db_user} " if Helpers.db_user.present?
+      cmd << "--password='#{Helpers.db_pass}' " if Helpers.db_pass.present?
+      cmd << "#{Helpers.db_name} > #{Helpers.db_dump_file_path}"
 
-      puts "running #{cmd}"
-
-      system `#{cmd}`
+      sh cmd
     end
 
     desc 'import into local mysql db'
-    task :import_dump_into_dev_mysql_db do
-      dev = Helpers.import_setup
+    task :restore => :check_env do
+      ENV['DB_KIND'] = 'mysql'
+      import_setup
 
-      cmd = "mysql"
-      cmd << " -u #{dev['username']}" unless dev['username'].blank?
-      cmd << " #{dev['database']} < #{Helpers.db_dump_file_path}"
+      cmd = "#{Helpers.ssh_command} 'cd #{Helpers.path} && " 
+      cmd << "mysql"
+      cmd << " -u #{Helpers.db_user}" if Helpers.db_user.present?
+      cmd << " --password=#{Helpers.db_pass}" if Helpers.db_pass.present?
+      cmd << " #{Helpers.db_name} < #{Helpers.db_dump_file_path(Helpers.path)} '"
 
-      puts "Running #{cmd}"
-      system `#{cmd}`
+      sh cmd
     end
+
   end
 end

@@ -20,15 +20,20 @@ Or install it yourself as:
 
 ## Usage
 ### Ansible
-`rake railsbox:deploy` Deploys the app to whichever environment is set in RAILS_ENV.
-`rake railsbox:provision` Provisions the app to whichever environment is set in RAILS_ENV.
+`rake %ENV% railsbox:deploy` Deploys the app. Development does not need to be deployed to use
+`rake %ENV% railsbox:provision` Provisions the app.
+
+Where %ENV% is development / staging / production. 
+
 ### Postgres
-`rake railsbox:pg:pull_db_from_heroku` Pull a postgres database from Heroku, drops your local development database, and imports the heroku database into your development database.
-`rake railsbox:pg:pg_dump_download` Pulls a database dump from one of your deployed environments and puts the dump in the /tmp directory of your rails app.
-`rake railsbox:pg:import_dump_into_dev_pg_db` Drops your development database and uses the database dump created by `rake railsbox:pg:pg_dump_download` to repopulate your development database.
-`rake railsbox:pg:pull_dump_and_import` Runs `rake railsbox:pg:pg_dump_download` and `rake railsbox:pg:import_dump_into_dev_pg_db` in series to pull and import data and schema from a deployed app into your development database.
+`rake %ENV% railsbox:pg:pull_db_from_heroku` Pull a postgres database from Heroku, drops your local development database, and imports the heroku database into your development database.
+`rake %ENV% railsbox:pg:dump` Pulls a database dump from one of your deployed environments and puts the dump in the /tmp directory of your rails app.
+`rake %ENV% railsbox:pg:restore` Drops your development database and uses the database dump created by `rake railsbox:pg:pg_dump_download` to repopulate your development database.
+
 ### mysql
-There are similar commands to those above but they are not well tested.
+There are similar commands to those above.
+`rake %ENV% railsbox:mysql:dump` Pulls a database dump from one of your deployed environments and puts the dump in the /tmp directory of your rails app.
+`rake %ENV% railsbox:mysql:restore` Drops your development database and uses the database dump created by `rake railsbox:pg:pg_dump_download` to repopulate your development database.
 
 
 ## Development

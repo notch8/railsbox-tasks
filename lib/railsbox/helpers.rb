@@ -1,47 +1,74 @@
 module Helpers
-  def db_dump_file_path
-    File.expand_path("#{Rails.root}/tmp/dump.sql")
+  def ansible_vars
+    if @ansible_vars.blank?
+      @ansible_vars = Psych.load_file(Rails.root.join('railsbox', 'ansible', 'group_vars', 'all', 'config.yml'))
+      @ansible_vars.merge!(Psych.load_file(Rails.root.join('railsbox', 'ansible', 'group_vars', ENV['RAILS_ENV'], 'config.yml')))
+      @ansible_vars['host'] ||= get_db_host
+    end
+    return @ansible_vars
   end
 
-  def get_ansible_db_vars(env, db_type)
-    ansible_vars = Psych.load_file(Rails.root.join('railsbox', 'ansible', 'group_vars', 'all', 'config.yml'))
-    name = ansible_vars["#{db_type}_db_name"]
-    user = ansible_vars["#{db_type}_db_user"]
-    password = ansible_vars["#{db_type}_db_password"]
-    ansible_env_vars = Psych.load_file(Rails.root.join('railsbox', 'ansible', 'group_vars', env, 'config.yml'))
-    name = ansible_env_vars["#{db_type}_db_name"] if ansible_env_vars["#{db_type}_db_name"]
-    user = ansible_env_vars["#{db_type}_db_user"] if ansible_env_vars["#{db_type}_db_user"]
-    password = ansible_env_vars["#{db_type}_db_password"] if ansible_env_vars["#{db_type}_db_password"]
-    abort "Missing #{env} database name" if name.blank?
-    abort "Missing #{env} database user" if user.blank?
-    [name, user, password]
+  def db_kind
+    ENV['DB_KIND']
   end
 
-  def get_ansible_db_host(env)
-    n = false
-    host = ''
-    File.open(Rails.root.join('railsbox', env, 'inventory'), "r").each_line do |line|
-      n = true if line.gsub(/\[|\]/, '').strip == 'postgresql'
-      host = line.strip if n
+  def db_user
+    Helpers.ansible_vars["#{db_kind}_db_user"]
+  end
+  def db_pass
+    Helpers.ansible_vars["#{db_kind}_db_password"]
+  end
+
+  def db_name
+    Helpers.ansible_vars["#{db_kind}_db_name"]
+  end
+
+  def path
+    if ENV['RAILS_ENV'] == 'development'
+      "#{ansible_vars['path']}"
+    else
+      "#{ansible_vars['path']}/current"
+    end
+  end
+
+  def ssh_command
+    if ENV['RAILS_ENV'] == 'development'
+      "cd #{Rails.root}/railsbox/development && vagrant ssh -c "
+    else
+      "ssh -C #{ansible_vars['user_name']}@#{ansible_vars['host']} "
+    end
+  end
+
+  def db_dump_file_path(path=nil)
+    path ||= "#{Rails.root}"
+    File.expand_path("#{path}/tmp/dump.sql")
+  end
+
+  def get_db_host
+    if ENV['RAILS_ENV'] == 'development'
+      host = 'localhost'
+    else
+      n = false
+      host = ''
+      kind = ENV['DB_KIND']
+      File.open(Rails.root.join('railsbox', ENV['RAILS_ENV'], 'inventory'), "r").each_line do |line|
+        if n
+          host = line.strip
+          break
+        end
+        
+        n = true if line.gsub(/\[|\]/, '').strip == kind
+      end
     end
     host
   end
 
-  def which_env(envs = ['staging', 'production'])
-    which_env = choose_from_list("which env do you want to pull the db from:", ['staging', 'production'])
-    abort 'You must choose a valid env' unless which_env[0]
-    which_env[0]
-  end
-
   def import_setup
-    config = Rails.application.config.database_configuration
-    abort "Missing dev database config" if config['development'].blank?
-    abort "no pg dumpfile located in #{db_dump_file_path}" unless File.exist?(db_dump_file_path)
-    input = ask_yes_no('Are you sure you want to delete your dev db?', nil)
+    abort "no database dumpfile located in #{db_dump_file_path}" unless File.exist?(db_dump_file_path)
+    input = ask_yes_no("Are you sure you want to delete your #{ENV['RAILS_ENV']} db?", nil)
     abort 'Good call ;-)' unless input
-    Rake::Task['db:drop'].invoke
-    Rake::Task['db:create'].invoke
 
-    config['development']
+    cmd = "#{Helpers.ssh_command} 'cd #{Helpers.path} && bundle exec rake db:drop db:create' "
+    sh cmd
   end
 end

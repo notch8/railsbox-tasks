@@ -4,11 +4,6 @@ require 'railsbox/helpers'
 
 namespace :railsbox do
   namespace :pg do
-    desc 'reset the database'
-    task :reset => :check_env do
-      sh "cd #{Rails.root.join('railsbox', ENV['RAILS_ENV'])} && ansible -i inventory "
-    end
-
     include Helpers
     desc 'Pull pg db from heroku'
     task :pull_db_from_heroku do
@@ -29,50 +24,43 @@ namespace :railsbox do
       puts 'Running rake db:drop'
       Rake::Task['db:drop'].invoke
       cmd = "heroku pg:pull DATABASE_URL #{db_config['development']['database']} --app #{which_heroku_app[0]}"
-      puts "Running #{cmd}"
-
-      system `#{cmd}`
+      sh cmd
     end
 
     desc "download the pg_dump content into #{Helpers.db_dump_file_path}"
-    task :pg_dump_download do
-      env = which_env
-      pg_name, pg_user, pg_password = Helpers.get_ansible_db_vars(env, 'postgresql')
-      postgres_host = Helpers.get_ansible_db_host(env)
-
-      puts "host: #{postgres_host}\ndatabase: #{pg_name}\nuser: #{pg_user}"
+    task :dump => :check_env do
+      ENV['DB_KIND'] = db_kind = 'postgresql'
 
       # remove the old dump
       File.delete(Helpers.db_dump_file_path) if File.exist?(Helpers.db_dump_file_path)
       puts 'old db dump removed if exists'
 
-      cmd =  "ssh -C "
-      cmd << "#{pg_user}@"
-      cmd << "#{postgres_host} "
+      cmd =  Helpers.ssh_command
       # cmd << "PGPASSWORD=#{prod['password']} "
       cmd << "pg_dump --no-owner"
-      cmd << " --username=#{pg_user} #{pg_name} > "
+      cmd << " --username=#{Helpers.db_user} #{Helpers.db_name} > "
       cmd << Helpers.db_dump_file_path
 
-      puts "Running #{cmd}"
-      system `#{cmd}`
+      sh cmd
     end
 
     desc 'import into local pg db'
-    task :import_dump_into_dev_pg_db do
-      dev = Helpers.import_setup
-      cmd = "psql"
-      cmd << " -U #{dev['username']}" unless dev['username'].blank?
-      cmd << " #{dev['database']} < #{Helpers.db_dump_file_path}"
+    task :restore => :check_env do
+      ENV['DB_KIND'] = 'postgresql'
+      import_setup
 
-      puts "Running #{cmd}"
-      system `#{cmd}`
+      cmd = Helpers.ssh_command
+      cmd << "'psql"
+      cmd << " -U #{Helpers.db_user}" if Helpers.db_user.present?
+      cmd << " #{Helpers.db_name} < #{Helpers.db_dump_file_path}'"
+
+      sh cmd
     end
 
     desc 'Pull pg db and import into local dev db'
-    task :pull_dump_and_import do
-      Rake::Task['railsbox:db:pg_dump_download'].invoke
-      Rake::Task['railsbox:db:import_dump_into_dev_pg_db'].invoke
+    task :pull do
+      Rake::Task['railsbox:pg:dump'].invoke
+      Rake::Task['railsbox:pg:restore'].invoke
     end
   end
 end
