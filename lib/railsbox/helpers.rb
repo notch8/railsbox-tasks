@@ -1,7 +1,7 @@
 module Railsbox
   module Helpers
     def ansible_vars
-      if @ansible_vars.blank?
+      if !@ansible_vars
         @ansible_vars = Psych.load_file(File.join('railsbox', 'ansible', 'group_vars', 'all', 'config.yml'))
         @ansible_vars.merge!(Psych.load_file(File.join('railsbox', 'ansible', 'group_vars', ENV['RAILS_ENV'], 'config.yml')))
         @ansible_vars['host'] ||= get_db_host
@@ -10,18 +10,24 @@ module Railsbox
     end
 
     def db_kind
-      ENV['DB_KIND']
+      if ENV['DB_KIND'] && ENV['DB_KIND'].size > 1
+        ENV['DB_KIND']
+      elsif File.exists?('config/database.yml')
+        db_config = Psych.load_file('config/database.yml')
+        db_config[ENV['RAILS_ENV']]['adapter'].gsub(/\d/, '').gsub("^pg$", "postgresql") # turn mysql2 in to mysql
+      end
     end
 
     def db_user
-      Helpers.ansible_vars["#{db_kind}_db_user"]
+      ansible_vars["#{db_kind}_db_user"]
     end
+
     def db_pass
-      Helpers.ansible_vars["#{db_kind}_db_password"]
+      ansible_vars["#{db_kind}_db_password"]
     end
 
     def db_name
-      Helpers.ansible_vars["#{db_kind}_db_name"]
+      ansible_vars["#{db_kind}_db_name"]
     end
 
     def path
@@ -63,13 +69,5 @@ module Railsbox
       host
     end
 
-    def import_setup
-      abort "no database dumpfile located in #{db_dump_file_path}" unless File.exist?(db_dump_file_path)
-      input = ask_yes_no("Are you sure you want to delete your #{ENV['RAILS_ENV']} db?", nil)
-      abort 'Good call ;-)' unless input
-
-      cmd = "#{Helpers.ssh_command} 'cd #{Helpers.path} && bundle exec rake db:drop db:create' "
-      sh cmd
-    end
   end
 end
