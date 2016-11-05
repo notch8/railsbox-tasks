@@ -70,13 +70,13 @@ class RailsboxCommand < Thor
       cmd = ssh_command
       cmd << "'psql"
       cmd << " -U #{db_user}" if db_user.present?
-      cmd << " #{db_name} < #{db_dump_file_path}'"
+      cmd << " #{db_name}' < #{db_dump_file_path}"
     elsif db_kind == 'mysql'
       cmd = "#{ssh_command} 'cd #{path} && "
       cmd << "mysql"
       cmd << " -u #{db_user}" if db_user && !db_user.empty?
       cmd << " --password=#{db_pass}" if db_pass && !db_pass.empty?
-      cmd << " #{db_name} < #{db_dump_file_path(path)} '"
+      cmd << " #{db_name}' < #{db_dump_file_path(path)} "
     end
     run cmd
 
